@@ -10,15 +10,19 @@
  *
  * The roots themselves, including their KIRBY_ROOT_* overrides, are declared
  * in `/usr/local/share/kirby/roots.php`, which the entrypoint's scripts use
- * as well.
+ * as well. `/usr/local/share/kirby/install-guard.php` keeps the Panel
+ * installer from remote visitors, whatever Host header they send.
  *
  * @see https://getkirby.com/docs/guide/configuration/custom-folder-setup
  */
 
 require __DIR__ . '/../kirby/bootstrap.php';
 
-$roots = require '/usr/local/share/kirby/roots.php';
+$roots        = require '/usr/local/share/kirby/roots.php';
+$installGuard = require '/usr/local/share/kirby/install-guard.php';
 
-echo (new Kirby([
+$kirby = new Kirby([
 	'roots' => $roots(__DIR__),
-]))->render();
+]);
+
+echo $installGuard($kirby) ?? $kirby->render();

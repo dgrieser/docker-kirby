@@ -228,6 +228,42 @@ final class Container
 		return Response::fromWrapper(http_get_last_response_headers() ?? [], $body);
 	}
 
+	/**
+	 * Sends one request exactly as given, for what PHP's HTTP wrapper cannot
+	 * send: any method with a body, or an absolute request target such as
+	 * `http://localhost/`. HTTP/1.0, so that the response is never chunked
+	 * and ends with the connection.
+	 *
+	 * @param array<string, string> $headers
+	 */
+	public function request(string $method, string $target, array $headers = [], string $body = '', int $port = 80): Response
+	{
+		$socket = @stream_socket_client("tcp://127.0.0.1:{$this->port($port)}", $errorCode, $error, 10);
+		if ($socket === false) {
+			throw new RuntimeException("{$method} {$target} on {$this->name}:{$port} failed: {$error}");
+		}
+		stream_set_timeout($socket, 10);
+
+		$headers += ['Host' => 'localhost', 'Content-Length' => (string) strlen($body), 'Connection' => 'close'];
+		$request = "{$method} {$target} HTTP/1.0\r\n";
+		foreach ($headers as $name => $value) {
+			$request .= "{$name}: {$value}\r\n";
+		}
+		fwrite($socket, $request . "\r\n" . $body);
+
+		$raw = (string) stream_get_contents($socket);
+		$timedOut = stream_get_meta_data($socket)['timed_out'];
+		fclose($socket);
+
+		if ($timedOut || !str_contains($raw, "\r\n\r\n")) {
+			throw new RuntimeException("{$method} {$target} on {$this->name}:{$port} got no complete response:\n{$raw}");
+		}
+
+		[$head, $responseBody] = explode("\r\n\r\n", $raw, 2);
+
+		return Response::fromWrapper(explode("\r\n", $head), $responseBody);
+	}
+
 	private function probeSource(string $script): string
 	{
 		$source = file_get_contents(self::PROBES . $script);

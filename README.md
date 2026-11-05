@@ -24,6 +24,8 @@ docker run --rm -p 8080:80 mittwald/kirby:5
 
 That serves a minimal Kirby site on <http://localhost:8080>. It is meant as a starting point, not as something to deploy — for a real site you either mount your own content or build an image on top.
 
+The Panel at <http://localhost:8080/panel> needs a first account. Create it with `-e KIRBY_ADMIN_EMAIL=... -e KIRBY_ADMIN_PASSWORD=...`, or add `-e KIRBY_PANEL_INSTALL=true` to a trial run to use Kirby's installer; see [First panel account](#first-panel-account).
+
 With persistent data:
 
 ```sh
@@ -156,7 +158,7 @@ These map onto [Kirby config options](https://getkirby.com/docs/reference/system
 | `KIRBY_URL` | `url` |
 | `KIRBY_DEBUG` | `debug` |
 | `KIRBY_PANEL` | `panel` — set to `false` to disable the panel entirely |
-| `KIRBY_PANEL_INSTALL` | `panel.install` |
+| `KIRBY_PANEL_INSTALL` | `panel.install` — opens the Panel installer to every visitor until the first account exists, see [First panel account](#first-panel-account) |
 | `KIRBY_PANEL_SLUG` | `panel.slug` |
 | `KIRBY_LANGUAGES` | `languages` |
 | `KIRBY_SMARTYPANTS` | `smartypants` |
@@ -223,7 +225,9 @@ The entrypoint writes it to `site/config/.license` with mode `600` on every star
 
 ### First panel account
 
-Kirby offers its panel installer only on `localhost`. To get an admin account on a deployment that is only reachable under its public hostname, set:
+Kirby's Panel installer creates an admin account for whoever asks while none exists, if Kirby considers the installation local. It decides that by the host a request names — `localhost`, or a name ending in `.local`, `.test` or `.ddev.site` — before it looks at any address, and any client can name such a host. The image therefore only lets the installer answer requests from the container's own loopback interface, unless `KIRBY_PANEL_INSTALL=true` opens it to everybody until the first account exists. Through a published port, even from the same machine, a request does not come from loopback.
+
+To get an admin account, set:
 
 | Variable | Description |
 | --- | --- |
@@ -307,7 +311,9 @@ volumes:
 
 ## Notes for production
 
-**Creating the first panel user.** Kirby refuses to run its installer on a non-local host unless you allow it. Set `KIRBY_ADMIN_EMAIL` and `KIRBY_ADMIN_PASSWORD_FILE` instead, as described under [First panel account](#first-panel-account). `KIRBY_PANEL_INSTALL=true` also works, but until the account exists, anyone reaching `/panel` can create an admin user.
+**Creating the first panel user.** The Panel installer only answers requests from inside the container. Set `KIRBY_ADMIN_EMAIL` and `KIRBY_ADMIN_PASSWORD_FILE` instead, as described under [First panel account](#first-panel-account). `KIRBY_PANEL_INSTALL=true` also works, but until the account exists, anyone reaching `/panel` can create an admin user.
+
+**Setting `KIRBY_URL`.** Set it to the public URL on every deployment. Without it, Kirby takes the host from the request, which any client controls, and uses it for every absolute URL it generates, for the sender of login codes, for the namespace of the page cache and to pick a `site/config/config.<host>.php`. With `KIRBY_URL` set, Kirby ignores the `Host` header.
 
 **Behind a TLS-terminating proxy.** Keep `SERVER_NAME` on a bare port, and set `KIRBY_URL` to the public URL so Kirby generates correct links; Kirby does not read `X-Forwarded-Proto`. Set `TRUSTED_PROXIES` to the address range your proxy connects from, and nothing wider. Kirby blocks logins per client address after `auth.trials` failures. If the proxy is not trusted, every visitor shares its address, and one client can lock everyone out of the panel. A range that is too wide lets anything connecting from inside it choose its own address, and so get around that limit. The default, `private_ranges`, trusts every private network, which is convenient but rarely as narrow as it could be.
 
