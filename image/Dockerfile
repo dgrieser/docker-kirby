@@ -73,18 +73,31 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 # Built in /kit rather than /app because the FrankenPHP base image already
 # ships a welcome page at /app/public, and create-project refuses a non-empty
 # target directory.
+#
+# Kirby pins most of its dependencies to one exact release.
+# build/patch-releases.php moves the ones listed there onto their newest patch
+# release before anything is installed, so that a security fix in, say,
+# symfony/yaml does not have to wait for the next Kirby release. `composer audit` then fails the build if
+# what is about to ship still has a known advisory, instead of the image
+# shipping it quietly.
+COPY build/ /usr/local/src/kirby-build/
+
 RUN --mount=type=cache,target=/tmp/composer,sharing=locked \
 	COMPOSER_HOME=/tmp/composer composer create-project \
 		getkirby/plainkit /kit "${PLAINKIT_CONSTRAINT:?PLAINKIT_CONSTRAINT build argument is required}" \
 		--no-interaction \
 		--no-progress \
+		--no-install \
 		--remove-vcs \
+	&& COMPOSER_HOME=/tmp/composer php /usr/local/src/kirby-build/patch-releases.php \
+		/kit "${KIRBY_VERSION:?KIRBY_VERSION build argument is required}" \
 	&& COMPOSER_HOME=/tmp/composer composer require --working-dir=/kit \
-		"getkirby/cms:${KIRBY_VERSION:?KIRBY_VERSION build argument is required}" \
+		"getkirby/cms:${KIRBY_VERSION}" \
 		--no-interaction \
 		--no-progress \
 		--no-audit \
 		--optimize-autoloader \
+	&& COMPOSER_HOME=/tmp/composer composer audit --working-dir=/kit --locked --abandoned=report \
 	&& test -f /kit/kirby/bootstrap.php \
 	&& test "$(php -r 'require "/kit/kirby/bootstrap.php"; echo Kirby::version();')" = "${KIRBY_VERSION}"
 
@@ -112,6 +125,7 @@ RUN --mount=type=cache,target=/tmp/composer,sharing=locked \
 		--no-progress \
 		--no-audit \
 		--optimize-autoloader \
+	&& COMPOSER_HOME=/tmp/composer composer audit --working-dir=/opt/kirby-cli --locked --abandoned=report \
 	&& test -x /opt/kirby-cli/vendor/bin/kirby
 
 
