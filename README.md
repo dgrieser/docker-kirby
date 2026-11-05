@@ -196,6 +196,8 @@ Login and password reset codes are sent from `noreply@` followed by the host of 
 
 It is merged into the options built from the variables above: an object such as `{"email":{"presets":{...}}}` adds to the email settings instead of replacing them, while a list such as `routes` or `auth.methods` replaces the existing one as a whole.
 
+PHP sees the server's environment in `$_SERVER` and `$_ENV`, and with `KIRBY_DEBUG=true` Kirby's error page lists both to whoever triggers an error. The image masks the variables above that carry secrets on that page (`KIRBY_ADMIN_PASSWORD`, `KIRBY_EMAIL_PASSWORD`, `KIRBY_CONTENT_SALT`, `KIRBY_COOKIE_KEY`, `KIRBY_LICENSE`, `KIRBY_OPTIONS_JSON`) through `whoops.blocklist`, and drops `KIRBY_ADMIN_PASSWORD` and `KIRBY_LICENSE` from the server's environment once the entrypoint has used them. Anything else you pass in the environment, a plugin's API key for instance, is listed unmasked; add it to `whoops.blocklist` in your config. Wherever a variable has a `_FILE` variant, a mounted secret keeps the value out of the environment and out of `docker inspect` altogether. Never switch on `KIRBY_DEBUG` on a site the public can reach.
+
 ### Secrets
 
 Kirby signs the preview links of drafts and unsaved changes with [`content.salt`](https://getkirby.com/security/content-salt), which also goes into every media URL, and signs cookies with `cookie.key`. Left unset, the salt defaults to the path of the content folder. That path is `/app/content` in every container of this image, so anyone could compute preview links to your drafts.
@@ -236,7 +238,7 @@ To get an admin account, set:
 
 The entrypoint creates the account with the `admin` role **only while no account exists at all**, before the server starts. After that the variables do nothing: changing `KIRBY_ADMIN_PASSWORD` does not change the password, and an account renamed or deleted in the panel does not come back. The log says which of the two happened on every start.
 
-The password stays in the container's environment for as long as the variable is set, so prefer `KIRBY_ADMIN_PASSWORD_FILE` with a mounted secret, or remove the variables once the account exists and change the password in the panel.
+The entrypoint drops the password from the web server's environment once it has used it, but it stays visible to `docker inspect` and `docker exec` for as long as the variable is set. Prefer `KIRBY_ADMIN_PASSWORD_FILE` with a mounted secret, or remove the variables once the account exists and change the password in the panel.
 
 If the account cannot be created — a missing password, one Kirby rejects, a plugin that fails to load — the container exits with an error instead of starting without an admin. Start a single replica for the first run: two containers starting at the same moment on an empty accounts volume could both try to create the account.
 

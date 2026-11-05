@@ -165,6 +165,20 @@ foreach ($secrets($storage) as $option => [$variable, $generated]) {
 	}
 }
 
+// PHP copies the server's environment into $_SERVER and $_ENV, and with
+// `debug` on, Kirby's error page lists both to whoever triggers an error.
+// The variables that carry secrets are masked there. `whoops: false` in the
+// config still switches the page off entirely.
+$sensitive = [
+	'KIRBY_ADMIN_PASSWORD',
+	'KIRBY_EMAIL_PASSWORD',
+	'KIRBY_LICENSE',
+	'KIRBY_OPTIONS_JSON',
+	...array_column($secrets($storage), 0),
+];
+
+$set($options, 'whoops.blocklist', ['_SERVER' => $sensitive, '_ENV' => $sensitive]);
+
 if (($json = $read('KIRBY_OPTIONS_JSON')) !== null) {
 	$decoded = json_decode($json, true);
 
