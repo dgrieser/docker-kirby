@@ -271,8 +271,10 @@ RUN composer require --no-interaction --no-progress \
 
 COPY --chown=kirby:kirby site/ /app/site/
 COPY --chown=kirby:kirby content/ /app/content/
-COPY --chown=kirby:kirby assets/ /app/public/assets/
+COPY assets/ /app/public/assets/
 ```
+
+The document root belongs to root, apart from the media root below it, so that the web server process cannot put a script there; keep what you add to `/app/public` owned by root too. The media root is writable, but nothing in it is ever executed.
 
 Replacing `site/config/config.php` is fine — keep the `require` so the `KIRBY_*` variables above keep working:
 

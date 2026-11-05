@@ -160,6 +160,17 @@ final class Container
 	}
 
 	/**
+	 * Writes a file in the container, as the runtime user unless asked for
+	 * root. Throws if that user cannot write it.
+	 */
+	public function write(string $path, string $content, bool $asRoot = false): void
+	{
+		$user = $asRoot ? ['-u', '0'] : [];
+
+		Docker::run(['exec', '-i', ...$user, $this->name, 'sh', '-c', 'cat > "$0"', $path], $content);
+	}
+
+	/**
 	 * Runs a script from probes/ through the PHP CLI and returns the JSON
 	 * object it prints. A probe that did not run, or printed anything else,
 	 * is an error, never an empty result.
@@ -183,6 +194,9 @@ final class Container
 	 * Like probe(), but served by FrankenPHP rather than run by the CLI, for
 	 * settings that only apply to the server.
 	 *
+	 * Written as root: the document root belongs to root, so that the server
+	 * process cannot put a script there itself.
+	 *
 	 * @param array<string, string> $headers
 	 * @return array<string, mixed>
 	 */
@@ -190,11 +204,11 @@ final class Container
 	{
 		$target = '/app/public/_probe.php';
 
-		Docker::run(['exec', '-i', $this->name, 'sh', '-c', "cat > {$target}"], $this->probeSource($script));
+		$this->write($target, $this->probeSource($script), asRoot: true);
 		try {
 			$response = $this->get('/_probe.php', headers: $headers);
 		} finally {
-			$this->exec('rm', '-f', $target);
+			Docker::run(['exec', '-u', '0', $this->name, 'rm', '-f', $target]);
 		}
 
 		if ($response->status !== 200) {

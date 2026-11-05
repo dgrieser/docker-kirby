@@ -177,6 +177,14 @@ COPY --from=builder /opt/kirby-cli/ /opt/kirby-cli/
 
 # `frankenphp validate` at the end turns a broken Caddyfile into a failed build
 # instead of a failed deployment.
+#
+# The runtime user owns the tree, so that the site, Composer in derived images
+# and the writable roots keep working, with three exceptions: /app itself,
+# the document root and the front controller belong to root. Whatever the
+# server process can write, it cannot add a script to the document root,
+# replace the front controller or swap out the directory the web server
+# serves. The media root below it stays writable; the Caddyfile never
+# executes anything in it.
 RUN set -eux; \
 	chmod +x /usr/local/bin/kirby-entrypoint; \
 	ln -s /opt/kirby-cli/vendor/bin/kirby /usr/local/bin/kirby; \
@@ -186,7 +194,10 @@ RUN set -eux; \
 	test -d /app/site/templates; \
 	cp -a /app/site /usr/local/share/kirby/site; \
 	frankenphp validate --config /etc/caddy/Caddyfile --adapter caddyfile; \
-	chown -R kirby:kirby /app /data/caddy /config/caddy
+	chown -R kirby:kirby /app /data/caddy /config/caddy; \
+	chown root:root /app /app/public /app/public/index.php; \
+	chmod 755 /app /app/public; \
+	chmod 644 /app/public/index.php
 
 ENV SERVER_NAME=":80" \
 	SERVER_ROOT="/app/public" \

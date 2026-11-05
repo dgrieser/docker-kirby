@@ -67,6 +67,14 @@ point at a deliberate upstream change, and say so.
   restart without failing: the `roots` array in `share/roots.php`,
   `writable_roots()` in `entrypoint.sh`, the builder's `mkdir -p` plus the
   `VOLUME` instruction, and the README's volume table.
+- **The server process cannot add code the web server runs.** `/app`,
+  `/app/public` and the front controller belong to root, and the Caddyfile
+  never executes anything below `/media`, the one writable directory under the
+  document root. Do not chown them back to `kirby` to make something work.
+- **The Panel installer only answers loopback**, unless `panel.install` is on.
+  Kirby decides "local" by the Host header, which any client sends, so
+  `share/install-guard.php` checks the TCP peer instead. `DocumentRootTest`
+  and `InstallerTest` hold both of these in place.
 
 ## Traps that have already cost time
 
@@ -171,8 +179,10 @@ image/
   entrypoint.sh         prepares writable roots, license, first admin,
                         drops privileges
   php/kirby.ini         fixed PHP settings; tunables live in the Caddyfile
-  share/                env-options.php (KIRBY_* -> Kirby options), roots.php
-                        and create-admin.php, outside /app on purpose
+  share/                env-options.php (KIRBY_* -> Kirby options), roots.php,
+                        create-admin.php and install-guard.php, outside /app
+                        on purpose
+  build/                builder-stage helpers, not part of the image
   app/                  the only two application files this repo owns
 scripts/                lint, build, smoke test entry point, version resolution
 tests/smoke/            the smoke test: PHPUnit scenarios, harness, probes
