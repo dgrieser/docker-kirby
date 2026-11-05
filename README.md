@@ -336,6 +336,7 @@ versions.json           every image that gets built, as data
 image/                  build context (Dockerfile, Caddyfile, php.ini, entrypoint)
   app/                  the only two application files this repo owns
 opencode.json           model config for the agent tasks
+.github/opencode/       the opencode release the agent tasks run, pinned
 scripts/
   resolve-versions.py   versions.json + Packagist -> build matrix
   check-updates.py      finds new Kirby majors and PHP bumps
@@ -357,16 +358,18 @@ The design goal was that routine upkeep needs no commits.
 - **The site skeleton** is installed from Kirby's plainkit during the build, so templates, blueprints and starting content are never something this repository has to keep in step with upstream.
 - **Security updates** in PHP, FrankenPHP and Debian arrive through the same daily rebuild, which runs with the layer cache disabled so updated packages are actually installed.
 - **PHP bumps** are detected weekly by `scripts/check-updates.py` and applied as a pull request. CI builds and smoke tests it, so a green run means the new PHP version actually serves Kirby and the PR can be merged as it stands.
-- **New Kirby majors** are detected by the same run, but not applied by it. Adding a major needs a plainkit release that may not exist yet, a decision about the `latest` tag, a decision about the branch it replaces, and a README table that nothing generates. So the run hands off to the `add-kirby-branch` skill under [opencode](https://opencode.ai), which does the work, builds it, runs the smoke test and opens the pull request itself — with a briefing carrying the facts the script already checked.
+- **New Kirby majors** are detected by the same run, but not applied by it. Adding a major needs a plainkit release that may not exist yet, a decision about the `latest` tag, a decision about the branch it replaces, and a README table that nothing generates. So the run hands off to the `add-kirby-branch` skill under [opencode](https://opencode.ai), which does the work, builds it, runs the smoke test and hands over the pull request — with a briefing carrying the facts the script already checked.
 - **Documentation drift** — an extension moving from recommended to required, a renamed Kirby root, a plainkit release that adds a directory the build has to place — is audited quarterly by the `kirby-docs-audit` skill, run the same way.
 - **What actually got published** is checked weekly by the `release-health-check` skill: every promised tag exists, is recent, is multi-arch, and still runs. It is looking for the quiet failure — a publish that breaks for one branch while the others stay green, so the images look maintained while one of them has stopped receiving security updates.
-- **GitHub Actions versions** are updated by Dependabot.
+- **GitHub Actions**, pinned to commit SHAs, and **the opencode release** the agent tasks run, pinned in `.github/opencode/package-lock.json`, are updated by Dependabot, a week after their release.
 
 The split is the point. A version string is applied by a script and verified by CI. Anything needing a reader is handed to a skill that has to build the image and pass the smoke test before it may open a pull request.
 
 Each of those runs has three possible endings, and the distinction is what keeps the automation honest: it fixed something, so there is a reviewed pull request; it found something it should not decide alone — moving `latest`, retiring a branch, an expired credential, an upstream outage — so there is an issue saying what a person has to decide; or there was nothing to do, so there is nothing. What it may never do is guess its way past a judgement call, or leave one buried in the body of a pull request that is about to be merged and forgotten.
 
 `.github/workflows/agent-task.yml` is the shared runner for the agent tasks. It owns the rules that are the same every time — never ask questions, verify with a real build, what to do when there is nothing to do — so adding another periodic skill is a caller of about fifteen lines.
+
+The agent reads text anyone can write, such as web pages, release notes and workflow logs, and runs shell commands without asking, so the runner does not trust it. The agent's job holds no credential that can write to GitHub: it leaves its commits, its pull request and its issues behind as files. A second job, which runs no model and none of the agent's code, checks them and only then pushes the branch and opens the pull request and issues. It refuses commits that touch `.github/`, and it does not open an issue whose title matches an open one.
 
 The skills themselves know nothing about the workflows that call them. A skill describes its task and how to verify it, nothing more; run-specific context is the caller's business, and anything a run needs to know belongs in the runner's preamble or the caller's prompt. That is what keeps the same skill usable by hand — `/add-kirby-branch` in an interactive session, with no workflow anywhere in sight — and it is worth preserving when adding new ones.
 
@@ -378,7 +381,8 @@ A few things have to be configured once, or the automation silently does nothing
 
 - `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (an access token with write scope). Without them the publish workflow fails at the login step; CI builds are unaffected because they never push.
 - `MITTWALD_AI_API_KEY`, the key for the model `opencode.json` points at. Only the agent tasks need it.
-- `RELEASE_USER_TOKEN`, a PAT with `repo` scope used by the agent tasks to push and open pull requests. It has to be a PAT rather than the default `GITHUB_TOKEN`: pushes made with `GITHUB_TOKEN` do not trigger workflows, and an agent's pull request whose CI never runs is worse than none.
+- `RELEASE_USER_TOKEN`, a token used by the publish step of the agent tasks, never by the agent itself, to push the agent's branch, open its pull requests and issues, and re-run `publish.yml` when the release health check asks for it. It has to be a PAT rather than the default `GITHUB_TOKEN`: pushes made with `GITHUB_TOKEN` do not trigger workflows, and an agent's pull request whose CI never runs is worse than none. Make it a fine-grained PAT for this repository alone, with read and write access to contents, pull requests, issues and actions and nothing else; in particular, not to workflows.
+- **A protected `main`** that requires a reviewed pull request, so that no token, this one included, can publish an image by pushing to it.
 - **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**, so `update-versions.yml` can open its PR.
 - Scheduled workflows are disabled automatically on repositories with no activity for 60 days. The daily rebuild is the thing that delivers security updates, so if the repository goes quiet, check that the schedule still fires — the `release-health-check` skill looks for exactly this.
 
