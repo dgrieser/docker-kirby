@@ -228,8 +228,9 @@ A run ends in exactly one of three states:
   checked, and what a person has to decide. A recurring job that files the
   same one every run is noise: interactively, read the open issues first;
   unattended, write it to `$AGENT_OUTPUT/issues/` with a title that does not
-  change from run to run, and the workflow skips it while an issue with that
-  title is open. Never guess past a judgement call, and never bury one in the
+  change from run to run. The prompt lists the titles of the open issues
+  earlier runs filed (labelled `automation`); reuse a matching one exactly,
+  and the workflow skips it while an issue with that title is open. Never guess past a judgement call, and never bury one in the
   body of a pull request that is about to be merged and forgotten.
 - **There was nothing to do** → nothing. No pull request, no issue. This is the
   expected outcome most runs and is a success; do not manufacture a finding to
