@@ -335,8 +335,12 @@ jobs:
 
             # Workflows run with this repository's secrets as soon as a
             # branch carrying them is pushed, so the agent may not change any.
-            git diff --name-only HEAD "$head" > "$RUNNER_TEMP/changed-files"
-            if grep '^\.github/' "$RUNNER_TEMP/changed-files" >&2; then
+            # Matched with a pathspec rather than by grepping a list of names:
+            # git quotes a name with unusual characters in it, so that a
+            # pattern anchored on ".github/" misses it, and a rename lists
+            # only where the file went. Any error counts as a change.
+            if ! git diff --quiet --no-renames HEAD "$head" -- ':(icase).github'; then
+              git diff --name-status --no-renames HEAD "$head" -- ':(icase).github' >&2 || true
               echo "::error::the agent's commits change .github/ (listed above), which it may not touch" >&2
               exit 1
             fi
