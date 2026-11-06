@@ -67,10 +67,15 @@ point at a deliberate upstream change, and say so.
   restart without failing: the `roots` array in `share/roots.php`,
   `writable_roots()` in `entrypoint.sh`, the builder's `mkdir -p` plus the
   `VOLUME` instruction, and the README's volume table.
-- **The server process cannot add code the web server runs.** `/app`,
-  `/app/public` and the front controller belong to root, and the Caddyfile
-  never executes anything below `/media`, the one writable directory under the
-  document root. Do not chown them back to `kirby` to make something work.
+- **The server process cannot add a script that the web server serves
+  directly.** `/app`, `/app/public` and the front controller belong to root,
+  and the Caddyfile never executes anything below `/media`, the one writable
+  directory under the document root. Do not chown them back to `kirby` to make
+  something work. That is all it guarantees: the runtime user still owns
+  `/app/site` (config, plugins, templates, snippets), `/app/kirby` and
+  `/app/vendor`, which Kirby loads on every request, so a file-write bug that
+  reaches them still gets code execution. Do not rely on, or describe, more
+  than that.
 - **The Panel installer only answers loopback**, unless `panel.install` is on.
   Kirby decides "local" by the Host header, which any client sends, so
   `share/install-guard.php` checks the TCP peer instead. `DocumentRootTest`

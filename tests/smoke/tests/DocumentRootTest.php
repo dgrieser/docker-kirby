@@ -11,8 +11,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * Below the document root, the server process can write to the media root
  * and nowhere else, and nothing it could put into the media root is ever
- * executed. Whatever file-write bug a plugin may have, it cannot add code
- * that the web server runs.
+ * executed. Whatever file-write bug a plugin may have, it cannot add a script
+ * that the web server serves directly. This does not cover the code Kirby
+ * loads from /app/site, /app/kirby and /app/vendor, which the runtime user
+ * still owns.
  */
 final class DocumentRootTest extends SmokeTestCase
 {

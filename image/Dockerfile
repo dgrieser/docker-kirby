@@ -184,7 +184,10 @@ COPY --from=builder /opt/kirby-cli/ /opt/kirby-cli/
 # server process can write, it cannot add a script to the document root,
 # replace the front controller or swap out the directory the web server
 # serves. The media root below it stays writable; the Caddyfile never
-# executes anything in it.
+# executes anything in it. This does not make the code Kirby loads read-only:
+# the runtime user still owns /app/site (config, plugins, templates),
+# /app/kirby and /app/vendor, so that derived images can run Composer and
+# /app/site can be a volume.
 RUN set -eux; \
 	chmod +x /usr/local/bin/kirby-entrypoint; \
 	ln -s /opt/kirby-cli/vendor/bin/kirby /usr/local/bin/kirby; \
