@@ -166,18 +166,41 @@ foreach ($secrets($storage) as $option => [$variable, $generated]) {
 }
 
 // PHP copies the server's environment into $_SERVER and $_ENV, and with
-// `debug` on, Kirby's error page lists both to whoever triggers an error.
-// The variables that carry secrets are masked there. `whoops: false` in the
-// config still switches the page off entirely.
-$sensitive = [
-	'KIRBY_ADMIN_PASSWORD',
-	'KIRBY_EMAIL_PASSWORD',
-	'KIRBY_LICENSE',
-	'KIRBY_OPTIONS_JSON',
-	...array_column($secrets($storage), 0),
-];
+// `debug` on, Kirby's error page lists both to whoever triggers an error. The
+// front controller removes the variables that carry the image's secrets from
+// both before Kirby boots, whatever the config says. They are also on the
+// page's blocklist, for entry points that do not go through it.
+//
+// The blocklist is keyed by variable name; Kirby only reads the values. A
+// config that adds its own variable the way the README shows,
+// `['whoops' => ['blocklist' => ['_SERVER' => ['MY_API_KEY' => 'MY_API_KEY']]]]`
+// merged with array_replace_recursive(), therefore adds to these entries
+// instead of overwriting them by index. `whoops: false` still switches the
+// page off, and `whoops: true` switches it on without a blocklist.
+$sensitive = require __DIR__ . '/sensitive-env.php';
+$masked    = array_combine($sensitive, $sensitive);
 
-$set($options, 'whoops.blocklist', ['_SERVER' => $sensitive, '_ENV' => $sensitive]);
+$withMasks = static function (mixed $whoops) use ($masked): mixed {
+	if (is_array($whoops) === false) {
+		return $whoops;
+	}
+
+	foreach (['_SERVER', '_ENV'] as $superglobal) {
+		$listed = $whoops['blocklist'][$superglobal] ?? [];
+		$keyed  = [];
+
+		// Entries given as a plain list are keyed by their name as well.
+		foreach (is_array($listed) ? $listed : [$listed] as $key => $name) {
+			$keyed[is_string($key) ? $key : (string)$name] = $name;
+		}
+
+		$whoops['blocklist'][$superglobal] = $keyed + $masked;
+	}
+
+	return $whoops;
+};
+
+$options['whoops'] = $withMasks(['blocklist' => []]);
 
 if (($json = $read('KIRBY_OPTIONS_JSON')) !== null) {
 	$decoded = json_decode($json, true);
@@ -203,6 +226,14 @@ if (($json = $read('KIRBY_OPTIONS_JSON')) !== null) {
 	};
 
 	$options = $merge($options, $decoded);
+
+	// A blocklist given as a list, `{"_SERVER":["MY_API_KEY"]}`, replaced the
+	// image's entries above; they are added back.
+	$options['whoops'] = $withMasks($options['whoops'] ?? null);
+
+	if ($options['whoops'] === null) {
+		unset($options['whoops']);
+	}
 }
 
 return $options;

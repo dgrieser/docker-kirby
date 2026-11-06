@@ -196,7 +196,24 @@ Login and password reset codes are sent from `noreply@` followed by the host of 
 
 It is merged into the options built from the variables above: an object such as `{"email":{"presets":{...}}}` adds to the email settings instead of replacing them, while a list such as `routes` or `auth.methods` replaces the existing one as a whole.
 
-PHP sees the server's environment in `$_SERVER` and `$_ENV`, and with `KIRBY_DEBUG=true` Kirby's error page lists both to whoever triggers an error. The image masks the variables above that carry secrets on that page (`KIRBY_ADMIN_PASSWORD`, `KIRBY_EMAIL_PASSWORD`, `KIRBY_CONTENT_SALT`, `KIRBY_COOKIE_KEY`, `KIRBY_LICENSE`, `KIRBY_OPTIONS_JSON`) through `whoops.blocklist`, and drops `KIRBY_ADMIN_PASSWORD` and `KIRBY_LICENSE` from the server's environment once the entrypoint has used them. Anything else you pass in the environment, a plugin's API key for instance, is listed unmasked; add it to `whoops.blocklist` in your config. Wherever a variable has a `_FILE` variant, a mounted secret keeps the value out of the environment and out of `docker inspect` altogether. Never switch on `KIRBY_DEBUG` on a site the public can reach.
+PHP sees the server's environment in `$_SERVER` and `$_ENV`, and with `KIRBY_DEBUG=true` Kirby's error page lists both to whoever triggers an error. The front controller removes the variables above that carry secrets (`KIRBY_ADMIN_PASSWORD`, `KIRBY_EMAIL_PASSWORD`, `KIRBY_CONTENT_SALT`, `KIRBY_COOKIE_KEY`, `KIRBY_LICENSE`, `KIRBY_OPTIONS_JSON`) from `$_SERVER` and `$_ENV` before Kirby starts, whatever your config sets. They are also on the page's `whoops.blocklist`, and the entrypoint drops `KIRBY_ADMIN_PASSWORD` and `KIRBY_LICENSE` from the server's environment once it has used them.
+
+Anything else you pass in the environment, a plugin's API key for instance, is listed unmasked. Add it to `whoops.blocklist` keyed by its name, so that it is merged with the image's entries instead of replacing them:
+
+```php
+<?php
+return array_replace_recursive(
+    require '/usr/local/share/kirby/env-options.php',
+    [
+        'whoops' => ['blocklist' => [
+            '_SERVER' => ['MY_API_KEY' => 'MY_API_KEY'],
+            '_ENV'    => ['MY_API_KEY' => 'MY_API_KEY'],
+        ]],
+    ]
+);
+```
+
+Through `KIRBY_OPTIONS_JSON` the same works as `{"whoops":{"blocklist":{"_SERVER":{"MY_API_KEY":"MY_API_KEY"},"_ENV":{"MY_API_KEY":"MY_API_KEY"}}}}`; a plain list there is accepted too. Setting `whoops` to `true` replaces the blocklist, so your own entries are lost again; `false` switches the page off. Wherever a variable has a `_FILE` variant, a mounted secret keeps the value out of the environment and out of `docker inspect` altogether. Never switch on `KIRBY_DEBUG` on a site the public can reach.
 
 ### Secrets
 
