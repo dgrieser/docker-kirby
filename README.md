@@ -293,6 +293,18 @@ COPY assets/ /app/public/assets/
 
 The document root belongs to root, apart from the media root below it, so that the web server process cannot put a script there; keep what you add to `/app/public` owned by root too. The media root is writable, but nothing in it is ever executed.
 
+Kirby pins some of its dependencies, such as `symfony/yaml`, to one exact release. When a security fix for one of them is out before Kirby pins it, the image ships the fixed patch release under an inline alias, and the `require` section of `/app/composer.json` then contains an entry such as `"symfony/yaml": "7.4.23 as 7.4.21"`. Images built while Kirby already pins the newest patch release have no such entry. The alias stays in the file your image builds on:
+
+- Adding plugins with `composer require`, as above, works as usual.
+- To move `getkirby/cms` to another release yourself, drop the alias first and update Kirby together with its dependencies. Otherwise Composer keeps the exact release the alias requires and refuses a Kirby release that pins a newer one:
+
+  ```dockerfile
+  RUN composer remove --no-update symfony/yaml \
+   && composer require --no-interaction --with-all-dependencies getkirby/cms:5.6.4
+  ```
+
+- If an advisory is later published for the aliased release itself, Composer refuses to resolve it, and `composer require` in your image fails. Build on a freshly pulled base image (`docker build --pull`): the images are rebuilt daily and move to the newest patch release on their own. Until one is out, require the fixed release under the same alias yourself, for example `composer require --no-update "symfony/yaml:7.4.24 as 7.4.21"` followed by `composer update symfony/yaml`.
+
 Replacing `site/config/config.php` is fine — keep the `require` so the `KIRBY_*` variables above keep working:
 
 ```php

@@ -24,6 +24,11 @@
  * It only edits composer.json; the install that follows resolves everything
  * at once, and Composer's own advisory check still applies to the result.
  *
+ * The alias stays in the composer.json the image ships as /app/composer.json:
+ * the lock file and vendor/ depend on it. Derived images that run Composer
+ * inherit it, and the README ("Building your own site on top") says what that
+ * means for them and how to drop it.
+ *
  * @see https://getcomposer.org/doc/articles/aliases.md#require-inline-alias
  */
 
